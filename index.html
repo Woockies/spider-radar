@@ -247,13 +247,15 @@
         // Synchronise imperial/metric display values when unit system changes
         useEffect(() => {
           if (unitSystem === 'metric') {
-            setWeightLbsInput(kgToLbs(parseFloatSafe(weightKg)).toFixed(1));
+                // When switching to metric, round the converted weight to the nearest whole number
+                setWeightLbsInput(Math.round(kgToLbs(parseFloatSafe(weightKg))).toString());
             const { feet, inches } = cmToFeetInches(parseFloatSafe(heightCm));
             setHeightFeetInput(feet.toString());
             setHeightInchesInput(inches.toString());
           } else {
-            setWeightKg(lbsToKg(parseFloatSafe(weightLbsInput)).toFixed(2));
-            setHeightCm(feetInchesToCm(heightFeetInput, heightInchesInput).toFixed(2));
+                // When switching to imperial, round the converted values to avoid long decimals
+                setWeightKg(Math.round(lbsToKg(parseFloatSafe(weightLbsInput))).toString());
+                setHeightCm(Math.round(feetInchesToCm(heightFeetInput, heightInchesInput)).toString());
           }
         }, [unitSystem, weightKg, heightCm, weightLbsInput, heightFeetInput, heightInchesInput]);
 
@@ -263,7 +265,8 @@
           const convert = (val, toMetric) => {
             const num = parseFloatSafe(val);
             if (!num) return val;
-            return toMetric ? lbsToKg(num).toFixed(2) : kgToLbs(num).toFixed(2);
+                // Round conversion results to whole numbers to simplify input handling
+                return toMetric ? Math.round(lbsToKg(num)).toString() : Math.round(kgToLbs(num)).toString();
           };
           if (unitSystem === 'metric') {
             // convert all exercise weights to kg
@@ -292,7 +295,8 @@
           const reps = parseFloatSafe(squatReps);
           if (w > 0 && reps > 0) {
             const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
-            setSquat1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+                 // Round the estimated 1RM to the nearest whole number
+                 setSquat1RMKg(Math.round(estimate1RM(weightKg, reps)).toString());
           } else {
             setSquat1RMKg('');
           }
@@ -303,7 +307,7 @@
           const reps = parseFloatSafe(deadliftReps);
           if (w > 0 && reps > 0) {
             const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
-            setDeadlift1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+                 setDeadlift1RMKg(Math.round(estimate1RM(weightKg, reps)).toString());
           } else {
             setDeadlift1RMKg('');
           }
@@ -314,7 +318,7 @@
           const reps = parseFloatSafe(benchReps);
           if (w > 0 && reps > 0) {
             const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
-            setBench1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+                 setBench1RMKg(Math.round(estimate1RM(weightKg, reps)).toString());
           } else {
             setBench1RMKg('');
           }
@@ -325,7 +329,7 @@
           const reps = parseFloatSafe(overheadPressReps);
           if (w > 0 && reps > 0) {
             const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
-            setOverheadPress1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+                 setOverheadPress1RMKg(Math.round(estimate1RM(weightKg, reps)).toString());
           } else {
             setOverheadPress1RMKg('');
           }
@@ -336,7 +340,7 @@
           const reps = parseFloatSafe(barbellRowReps);
           if (w > 0 && reps > 0) {
             const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
-            setBarbellRow1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+                 setBarbellRow1RMKg(Math.round(estimate1RM(weightKg, reps)).toString());
           } else {
             setBarbellRow1RMKg('');
           }
@@ -347,7 +351,7 @@
           const reps = parseFloatSafe(legCurlReps);
           if (w > 0 && reps > 0) {
             const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
-            setLegCurl1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+                 setLegCurl1RMKg(Math.round(estimate1RM(weightKg, reps)).toString());
           } else {
             setLegCurl1RMKg('');
           }
@@ -358,7 +362,7 @@
           const reps = parseFloatSafe(legExtensionReps);
           if (w > 0 && reps > 0) {
             const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
-            setLegExtension1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+                 setLegExtension1RMKg(Math.round(estimate1RM(weightKg, reps)).toString());
           } else {
             setLegExtension1RMKg('');
           }
@@ -596,14 +600,17 @@
         // Render the form inputs for a one‑rep max field with optional estimate inputs
         const render1RMInput = (label, value, setValue) => {
           // Determine display value and handler based on unit system. We store internally in kg.
-          const displayValue = unitSystem === 'metric' ? value : (value ? kgToLbs(parseFloatSafe(value)).toFixed(2) : '');
+          const displayValue = unitSystem === 'metric'
+            ? value
+            : (value ? Math.round(kgToLbs(parseFloatSafe(value))).toString() : '');
           const handleChange = (e) => {
             const inputVal = e.target.value;
             if (unitSystem === 'metric') {
+              // Store the metric value directly
               setValue(inputVal);
             } else {
-              // convert lbs input to kg for internal storage
-              const kgVal = lbsToKg(parseFloatSafe(inputVal)).toFixed(2);
+              // Convert lbs input to kg and round to whole number
+              const kgVal = Math.round(lbsToKg(parseFloatSafe(inputVal))).toString();
               setValue(kgVal);
             }
           };
@@ -613,7 +620,7 @@
               <input
                 type="number"
                 min="0"
-                step="0.5"
+                step="1"
                 className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
                 value={displayValue}
                 onChange={handleChange}
@@ -649,20 +656,22 @@
           setReps
         ) => {
           // Determine the display value for the 1RM based on the current unit system.
-          const displayValue = unitSystem === 'metric'
-            ? oneRM
-            : oneRM
-            ? kgToLbs(parseFloatSafe(oneRM)).toFixed(2)
-            : '';
+              const displayValue = unitSystem === 'metric'
+                ? oneRM
+                : oneRM
+                ? Math.round(kgToLbs(parseFloatSafe(oneRM))).toString()
+                : '';
           // Handle manual 1RM changes. Convert back to kg for storage when using imperial.
           const handleRMChange = (e) => {
             const inputVal = e.target.value;
-            if (unitSystem === 'metric') {
-              setOneRM(inputVal);
-            } else {
-              const kgVal = lbsToKg(parseFloatSafe(inputVal)).toFixed(2);
-              setOneRM(kgVal);
-            }
+                 if (unitSystem === 'metric') {
+                   // Store the value directly when using metric units
+                   setOneRM(inputVal);
+                 } else {
+                   // Convert the entered lbs back to kg and round to whole number
+                   const kgVal = Math.round(lbsToKg(parseFloatSafe(inputVal))).toString();
+                   setOneRM(kgVal);
+                 }
           };
           return (
             <div className="flex flex-col mb-4">
@@ -672,7 +681,7 @@
               <input
                 type="number"
                 min="0"
-                step="0.5"
+                step="1"
                 className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
                 value={displayValue}
                 onChange={handleRMChange}
@@ -689,7 +698,7 @@
                   <input
                     type="number"
                     min="0"
-                    step="0.5"
+                    step="1"
                     className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
                     value={weight}
                     onChange={(e) => setWeight(e.target.value)}
