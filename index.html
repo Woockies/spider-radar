@@ -195,7 +195,7 @@
         const [heightInchesInput, setHeightInchesInput] = useState('');
         const [weightLbsInput, setWeightLbsInput] = useState('');
 
-        // Strength inputs in KG
+        // Strength inputs in KG (internal storage)
         const [squat1RMKg, setSquat1RMKg] = useState('');
         const [deadlift1RMKg, setDeadlift1RMKg] = useState('');
         const [bench1RMKg, setBench1RMKg] = useState('');
@@ -203,6 +203,22 @@
         const [barbellRow1RMKg, setBarbellRow1RMKg] = useState('');
         const [legCurl1RMKg, setLegCurl1RMKg] = useState('');
         const [legExtension1RMKg, setLegExtension1RMKg] = useState('');
+
+        // Max set weight and reps for each exercise (entered in the current unit system)
+        const [squatWeight, setSquatWeight] = useState('');
+        const [squatReps, setSquatReps] = useState('');
+        const [deadliftWeight, setDeadliftWeight] = useState('');
+        const [deadliftReps, setDeadliftReps] = useState('');
+        const [benchWeight, setBenchWeight] = useState('');
+        const [benchReps, setBenchReps] = useState('');
+        const [overheadPressWeight, setOverheadPressWeight] = useState('');
+        const [overheadPressReps, setOverheadPressReps] = useState('');
+        const [barbellRowWeight, setBarbellRowWeight] = useState('');
+        const [barbellRowReps, setBarbellRowReps] = useState('');
+        const [legCurlWeight, setLegCurlWeight] = useState('');
+        const [legCurlReps, setLegCurlReps] = useState('');
+        const [legExtensionWeight, setLegExtensionWeight] = useState('');
+        const [legExtensionReps, setLegExtensionReps] = useState('');
 
         // Optional unilateral inputs
         const [squatRight1RMKg, setSquatRight1RMKg] = useState('');
@@ -240,6 +256,113 @@
             setHeightCm(feetInchesToCm(heightFeetInput, heightInchesInput).toFixed(2));
           }
         }, [unitSystem, weightKg, heightCm, weightLbsInput, heightFeetInput, heightInchesInput]);
+
+        // Convert entered weights between metric and imperial when unit system changes
+        useEffect(() => {
+          // Helper to convert a single value based on direction
+          const convert = (val, toMetric) => {
+            const num = parseFloatSafe(val);
+            if (!num) return val;
+            return toMetric ? lbsToKg(num).toFixed(2) : kgToLbs(num).toFixed(2);
+          };
+          if (unitSystem === 'metric') {
+            // convert all exercise weights to kg
+            setSquatWeight((prev) => convert(prev, true));
+            setDeadliftWeight((prev) => convert(prev, true));
+            setBenchWeight((prev) => convert(prev, true));
+            setOverheadPressWeight((prev) => convert(prev, true));
+            setBarbellRowWeight((prev) => convert(prev, true));
+            setLegCurlWeight((prev) => convert(prev, true));
+            setLegExtensionWeight((prev) => convert(prev, true));
+          } else {
+            // convert all exercise weights to lbs
+            setSquatWeight((prev) => convert(prev, false));
+            setDeadliftWeight((prev) => convert(prev, false));
+            setBenchWeight((prev) => convert(prev, false));
+            setOverheadPressWeight((prev) => convert(prev, false));
+            setBarbellRowWeight((prev) => convert(prev, false));
+            setLegCurlWeight((prev) => convert(prev, false));
+            setLegExtensionWeight((prev) => convert(prev, false));
+          }
+        }, [unitSystem]);
+
+        // Compute 1RM values automatically from the max set inputs. We store 1RM internally in KG.
+        useEffect(() => {
+          const w = parseFloatSafe(squatWeight);
+          const reps = parseFloatSafe(squatReps);
+          if (w > 0 && reps > 0) {
+            const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
+            setSquat1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+          } else {
+            setSquat1RMKg('');
+          }
+        }, [squatWeight, squatReps, unitSystem]);
+
+        useEffect(() => {
+          const w = parseFloatSafe(deadliftWeight);
+          const reps = parseFloatSafe(deadliftReps);
+          if (w > 0 && reps > 0) {
+            const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
+            setDeadlift1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+          } else {
+            setDeadlift1RMKg('');
+          }
+        }, [deadliftWeight, deadliftReps, unitSystem]);
+
+        useEffect(() => {
+          const w = parseFloatSafe(benchWeight);
+          const reps = parseFloatSafe(benchReps);
+          if (w > 0 && reps > 0) {
+            const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
+            setBench1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+          } else {
+            setBench1RMKg('');
+          }
+        }, [benchWeight, benchReps, unitSystem]);
+
+        useEffect(() => {
+          const w = parseFloatSafe(overheadPressWeight);
+          const reps = parseFloatSafe(overheadPressReps);
+          if (w > 0 && reps > 0) {
+            const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
+            setOverheadPress1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+          } else {
+            setOverheadPress1RMKg('');
+          }
+        }, [overheadPressWeight, overheadPressReps, unitSystem]);
+
+        useEffect(() => {
+          const w = parseFloatSafe(barbellRowWeight);
+          const reps = parseFloatSafe(barbellRowReps);
+          if (w > 0 && reps > 0) {
+            const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
+            setBarbellRow1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+          } else {
+            setBarbellRow1RMKg('');
+          }
+        }, [barbellRowWeight, barbellRowReps, unitSystem]);
+
+        useEffect(() => {
+          const w = parseFloatSafe(legCurlWeight);
+          const reps = parseFloatSafe(legCurlReps);
+          if (w > 0 && reps > 0) {
+            const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
+            setLegCurl1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+          } else {
+            setLegCurl1RMKg('');
+          }
+        }, [legCurlWeight, legCurlReps, unitSystem]);
+
+        useEffect(() => {
+          const w = parseFloatSafe(legExtensionWeight);
+          const reps = parseFloatSafe(legExtensionReps);
+          if (w > 0 && reps > 0) {
+            const weightKg = unitSystem === 'metric' ? w : lbsToKg(w);
+            setLegExtension1RMKg(estimate1RM(weightKg, reps).toFixed(2));
+          } else {
+            setLegExtension1RMKg('');
+          }
+        }, [legExtensionWeight, legExtensionReps, unitSystem]);
 
         /**
          * Compute strength ratios, symmetry scores and classifications.
@@ -471,19 +594,33 @@
         };
 
         // Render the form inputs for a one‑rep max field with optional estimate inputs
-        const render1RMInput = (label, value, setValue) => (
-          <div className="flex flex-col mb-4">
-            <label className="text-sm font-medium mb-1">{label} 1RM (kg)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-            />
-          </div>
-        );
+        const render1RMInput = (label, value, setValue) => {
+          // Determine display value and handler based on unit system. We store internally in kg.
+          const displayValue = unitSystem === 'metric' ? value : (value ? kgToLbs(parseFloatSafe(value)).toFixed(2) : '');
+          const handleChange = (e) => {
+            const inputVal = e.target.value;
+            if (unitSystem === 'metric') {
+              setValue(inputVal);
+            } else {
+              // convert lbs input to kg for internal storage
+              const kgVal = lbsToKg(parseFloatSafe(inputVal)).toFixed(2);
+              setValue(kgVal);
+            }
+          };
+          return (
+            <div className="flex flex-col mb-4">
+              <label className="text-sm font-medium mb-1">{label} 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                value={displayValue}
+                onChange={handleChange}
+              />
+            </div>
+          );
+        };
 
         return (
           <div>
@@ -603,14 +740,244 @@
                   </div>
                 </>
               )}
-              {/* Strength inputs */}
-              {render1RMInput('Squat', squat1RMKg, setSquat1RMKg)}
-              {render1RMInput('Deadlift', deadlift1RMKg, setDeadlift1RMKg)}
-              {render1RMInput('Bench Press', bench1RMKg, setBench1RMKg)}
-              {render1RMInput('Overhead Press', overheadPress1RMKg, setOverheadPress1RMKg)}
-              {render1RMInput('Barbell Row', barbellRow1RMKg, setBarbellRow1RMKg)}
-              {render1RMInput('Leg Curl', legCurl1RMKg, setLegCurl1RMKg)}
-              {render1RMInput('Leg Extension', legExtension1RMKg, setLegExtension1RMKg)}
+              {/* Strength inputs. For each lift we allow the user to enter a weight and reps to estimate their 1RM. */}
+              {/* Squat */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Squat set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={squatWeight}
+                  onChange={(e) => setSquatWeight(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Squat reps</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={squatReps}
+                  onChange={(e) => setSquatReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label className="text-sm font-medium mb-1">Squat 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  readOnly
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={unitSystem === 'metric' ? squat1RMKg : (squat1RMKg ? kgToLbs(parseFloatSafe(squat1RMKg)).toFixed(2) : '')}
+                  onChange={() => {}}
+                />
+              </div>
+
+              {/* Deadlift */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Deadlift set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={deadliftWeight}
+                  onChange={(e) => setDeadliftWeight(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Deadlift reps</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={deadliftReps}
+                  onChange={(e) => setDeadliftReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label className="text-sm font-medium mb-1">Deadlift 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  readOnly
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={unitSystem === 'metric' ? deadlift1RMKg : (deadlift1RMKg ? kgToLbs(parseFloatSafe(deadlift1RMKg)).toFixed(2) : '')}
+                  onChange={() => {}}
+                />
+              </div>
+
+              {/* Bench Press */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Bench Press set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={benchWeight}
+                  onChange={(e) => setBenchWeight(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Bench Press reps</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={benchReps}
+                  onChange={(e) => setBenchReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label className="text-sm font-medium mb-1">Bench Press 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  readOnly
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={unitSystem === 'metric' ? bench1RMKg : (bench1RMKg ? kgToLbs(parseFloatSafe(bench1RMKg)).toFixed(2) : '')}
+                  onChange={() => {}}
+                />
+              </div>
+
+              {/* Overhead Press */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Overhead Press set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={overheadPressWeight}
+                  onChange={(e) => setOverheadPressWeight(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Overhead Press reps</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={overheadPressReps}
+                  onChange={(e) => setOverheadPressReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label className="text-sm font-medium mb-1">Overhead Press 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  readOnly
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={unitSystem === 'metric' ? overheadPress1RMKg : (overheadPress1RMKg ? kgToLbs(parseFloatSafe(overheadPress1RMKg)).toFixed(2) : '')}
+                  onChange={() => {}}
+                />
+              </div>
+
+              {/* Barbell Row */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Barbell Row set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={barbellRowWeight}
+                  onChange={(e) => setBarbellRowWeight(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Barbell Row reps</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={barbellRowReps}
+                  onChange={(e) => setBarbellRowReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label className="text-sm font-medium mb-1">Barbell Row 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  readOnly
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={unitSystem === 'metric' ? barbellRow1RMKg : (barbellRow1RMKg ? kgToLbs(parseFloatSafe(barbellRow1RMKg)).toFixed(2) : '')}
+                  onChange={() => {}}
+                />
+              </div>
+
+              {/* Leg Curl */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Leg Curl set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={legCurlWeight}
+                  onChange={(e) => setLegCurlWeight(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Leg Curl reps</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={legCurlReps}
+                  onChange={(e) => setLegCurlReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label className="text-sm font-medium mb-1">Leg Curl 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  readOnly
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={unitSystem === 'metric' ? legCurl1RMKg : (legCurl1RMKg ? kgToLbs(parseFloatSafe(legCurl1RMKg)).toFixed(2) : '')}
+                  onChange={() => {}}
+                />
+              </div>
+
+              {/* Leg Extension */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Leg Extension set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={legExtensionWeight}
+                  onChange={(e) => setLegExtensionWeight(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Leg Extension reps</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={legExtensionReps}
+                  onChange={(e) => setLegExtensionReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label className="text-sm font-medium mb-1">Leg Extension 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                <input
+                  type="number"
+                  min="0"
+                  readOnly
+                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                  value={unitSystem === 'metric' ? legExtension1RMKg : (legExtension1RMKg ? kgToLbs(parseFloatSafe(legExtension1RMKg)).toFixed(2) : '')}
+                  onChange={() => {}}
+                />
+              </div>
 
               {/* Optional unilateral inputs */}
               <div className="col-span-full border-t border-gray-700 my-4"></div>
