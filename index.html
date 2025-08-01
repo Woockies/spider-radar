@@ -622,6 +622,100 @@
           );
         };
 
+        /**
+         * Render a one‑rep max input with an expandable estimate section.
+         *
+         * Many users may not know their 1RM off the top of their head. This helper
+         * presents a clean interface that prioritises the direct 1RM input but offers
+         * a collapsible area for entering a training weight and reps to estimate
+         * 1RM using the Epley formula. When weight/reps are provided, the 1RM state
+         * will update automatically via the existing useEffect hooks.
+         *
+         * @param {string} exerciseName – Label for the exercise (e.g. "Squat")
+         * @param {string|number} oneRM – The current 1RM value stored in kg
+         * @param {function} setOneRM – State setter for the 1RM value in kg
+         * @param {string|number} weight – Temporary set weight input (in current units)
+         * @param {function} setWeight – State setter for the weight input
+         * @param {string|number} reps – Temporary set reps input
+         * @param {function} setReps – State setter for the reps input
+         */
+        const render1RMWithEstimate = (
+          exerciseName,
+          oneRM,
+          setOneRM,
+          weight,
+          setWeight,
+          reps,
+          setReps
+        ) => {
+          // Determine the display value for the 1RM based on the current unit system.
+          const displayValue = unitSystem === 'metric'
+            ? oneRM
+            : oneRM
+            ? kgToLbs(parseFloatSafe(oneRM)).toFixed(2)
+            : '';
+          // Handle manual 1RM changes. Convert back to kg for storage when using imperial.
+          const handleRMChange = (e) => {
+            const inputVal = e.target.value;
+            if (unitSystem === 'metric') {
+              setOneRM(inputVal);
+            } else {
+              const kgVal = lbsToKg(parseFloatSafe(inputVal)).toFixed(2);
+              setOneRM(kgVal);
+            }
+          };
+          return (
+            <div className="flex flex-col mb-4">
+              <label className="text-sm font-medium mb-1">
+                {exerciseName} 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+                value={displayValue}
+                onChange={handleRMChange}
+              />
+              {/* Collapsible estimation area */}
+              <details className="mt-2 bg-gray-800 border border-gray-700 rounded-lg p-2">
+                <summary className="cursor-pointer text-indigo-400 select-none">
+                  Estimate {exerciseName} 1RM with weight & reps
+                </summary>
+                <div className="flex flex-col mt-2">
+                  <label className="text-sm font-medium mb-1">
+                    {exerciseName} set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col mt-2">
+                  <label className="text-sm font-medium mb-1">
+                    {exerciseName} reps
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                    value={reps}
+                    onChange={(e) => setReps(e.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  We'll automatically calculate your 1RM using the Epley formula based on the
+                  weight and reps you enter.
+                </p>
+              </details>
+            </div>
+          );
+        };
+
         return (
           <div>
             <h1 className="text-3xl font-bold text-indigo-400 mb-4 text-center">
@@ -742,242 +836,81 @@
               )}
               {/* Strength inputs. For each lift we allow the user to enter a weight and reps to estimate their 1RM. */}
               {/* Squat */}
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Squat set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={squatWeight}
-                  onChange={(e) => setSquatWeight(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Squat reps</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={squatReps}
-                  onChange={(e) => setSquatReps(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-4">
-                <label className="text-sm font-medium mb-1">Squat 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  readOnly
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={unitSystem === 'metric' ? squat1RMKg : (squat1RMKg ? kgToLbs(parseFloatSafe(squat1RMKg)).toFixed(2) : '')}
-                  onChange={() => {}}
-                />
-              </div>
+              {render1RMWithEstimate(
+                'Squat',
+                squat1RMKg,
+                setSquat1RMKg,
+                squatWeight,
+                setSquatWeight,
+                squatReps,
+                setSquatReps
+              )}
 
               {/* Deadlift */}
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Deadlift set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={deadliftWeight}
-                  onChange={(e) => setDeadliftWeight(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Deadlift reps</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={deadliftReps}
-                  onChange={(e) => setDeadliftReps(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-4">
-                <label className="text-sm font-medium mb-1">Deadlift 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  readOnly
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={unitSystem === 'metric' ? deadlift1RMKg : (deadlift1RMKg ? kgToLbs(parseFloatSafe(deadlift1RMKg)).toFixed(2) : '')}
-                  onChange={() => {}}
-                />
-              </div>
+              {render1RMWithEstimate(
+                'Deadlift',
+                deadlift1RMKg,
+                setDeadlift1RMKg,
+                deadliftWeight,
+                setDeadliftWeight,
+                deadliftReps,
+                setDeadliftReps
+              )}
 
               {/* Bench Press */}
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Bench Press set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={benchWeight}
-                  onChange={(e) => setBenchWeight(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Bench Press reps</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={benchReps}
-                  onChange={(e) => setBenchReps(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-4">
-                <label className="text-sm font-medium mb-1">Bench Press 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  readOnly
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={unitSystem === 'metric' ? bench1RMKg : (bench1RMKg ? kgToLbs(parseFloatSafe(bench1RMKg)).toFixed(2) : '')}
-                  onChange={() => {}}
-                />
-              </div>
+              {render1RMWithEstimate(
+                'Bench Press',
+                bench1RMKg,
+                setBench1RMKg,
+                benchWeight,
+                setBenchWeight,
+                benchReps,
+                setBenchReps
+              )}
 
               {/* Overhead Press */}
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Overhead Press set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={overheadPressWeight}
-                  onChange={(e) => setOverheadPressWeight(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Overhead Press reps</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={overheadPressReps}
-                  onChange={(e) => setOverheadPressReps(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-4">
-                <label className="text-sm font-medium mb-1">Overhead Press 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  readOnly
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={unitSystem === 'metric' ? overheadPress1RMKg : (overheadPress1RMKg ? kgToLbs(parseFloatSafe(overheadPress1RMKg)).toFixed(2) : '')}
-                  onChange={() => {}}
-                />
-              </div>
+              {render1RMWithEstimate(
+                'Overhead Press',
+                overheadPress1RMKg,
+                setOverheadPress1RMKg,
+                overheadPressWeight,
+                setOverheadPressWeight,
+                overheadPressReps,
+                setOverheadPressReps
+              )}
 
               {/* Barbell Row */}
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Barbell Row set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={barbellRowWeight}
-                  onChange={(e) => setBarbellRowWeight(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Barbell Row reps</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={barbellRowReps}
-                  onChange={(e) => setBarbellRowReps(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-4">
-                <label className="text-sm font-medium mb-1">Barbell Row 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  readOnly
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={unitSystem === 'metric' ? barbellRow1RMKg : (barbellRow1RMKg ? kgToLbs(parseFloatSafe(barbellRow1RMKg)).toFixed(2) : '')}
-                  onChange={() => {}}
-                />
-              </div>
+              {render1RMWithEstimate(
+                'Barbell Row',
+                barbellRow1RMKg,
+                setBarbellRow1RMKg,
+                barbellRowWeight,
+                setBarbellRowWeight,
+                barbellRowReps,
+                setBarbellRowReps
+              )}
 
               {/* Leg Curl */}
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Leg Curl set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={legCurlWeight}
-                  onChange={(e) => setLegCurlWeight(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Leg Curl reps</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={legCurlReps}
-                  onChange={(e) => setLegCurlReps(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-4">
-                <label className="text-sm font-medium mb-1">Leg Curl 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  readOnly
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={unitSystem === 'metric' ? legCurl1RMKg : (legCurl1RMKg ? kgToLbs(parseFloatSafe(legCurl1RMKg)).toFixed(2) : '')}
-                  onChange={() => {}}
-                />
-              </div>
+              {render1RMWithEstimate(
+                'Leg Curl',
+                legCurl1RMKg,
+                setLegCurl1RMKg,
+                legCurlWeight,
+                setLegCurlWeight,
+                legCurlReps,
+                setLegCurlReps
+              )}
 
               {/* Leg Extension */}
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Leg Extension set weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={legExtensionWeight}
-                  onChange={(e) => setLegExtensionWeight(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">Leg Extension reps</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={legExtensionReps}
-                  onChange={(e) => setLegExtensionReps(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col mb-4">
-                <label className="text-sm font-medium mb-1">Leg Extension 1RM ({unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
-                <input
-                  type="number"
-                  min="0"
-                  readOnly
-                  className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
-                  value={unitSystem === 'metric' ? legExtension1RMKg : (legExtension1RMKg ? kgToLbs(parseFloatSafe(legExtension1RMKg)).toFixed(2) : '')}
-                  onChange={() => {}}
-                />
-              </div>
+              {render1RMWithEstimate(
+                'Leg Extension',
+                legExtension1RMKg,
+                setLegExtension1RMKg,
+                legExtensionWeight,
+                setLegExtensionWeight,
+                legExtensionReps,
+                setLegExtensionReps
+              )}
 
               {/* Optional unilateral inputs */}
               <div className="col-span-full border-t border-gray-700 my-4"></div>
