@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spider Radar – Strength and Balance App</title>
+    <!-- Tailwind CSS via CDN for quick styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and ReactDOM UMD builds -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel compiler so we can write JSX directly in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body class="bg-gray-900 text-gray-200 min-h-screen">
+    <div class="max-w-4xl mx-auto p-6" id="root"></div>
+    <!-- Our application script. We use type="text/babel" so the browser compiles JSX on the fly. -->
+    <script type="text/babel">
+      {/**
+       * Strength & Balance App
+       *
+       * This is a self‑contained React application adapted from the user‑provided
+       * component. It removes the Firebase dependency and instead stores any
+       * saved results in the browser's localStorage. The core functionality
+       * remains intact: users can input their personal details and one‑rep maxes
+       * (or reps to estimate), compute strength ratios and symmetry scores,
+       * visualise their results in a radar/spider graph, and store previous
+       * assessments for later recall.
+       */}
+
+      // Pull the necessary hooks out of the React global. When using the UMD
+      // build of React, hooks are available under the React namespace.
+      const { useState, useEffect, useCallback, memo } = React;
+
+      // Helpers for parsing numbers safely and performing unit conversions.
+      const parseFloatSafe = (value) => {
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+
+      const kgToLbs = (kg) => kg * 2.20462;
+      const lbsToKg = (lbs) => lbs / 2.20462;
+      const cmToInches = (cm) => cm * 0.393701;
+      const inchesToCm = (inches) => inches / 0.393701;
+      const feetInchesToCm = (feet, inches) => {
+        const totalInches = (parseFloatSafe(feet) * 12) + parseFloatSafe(inches);
+        return inchesToCm(totalInches);
+      };
+      const cmToFeetInches = (cm) => {
+        const totalInches = cmToInches(cm);
+        const feet = Math.floor(totalInches / 12);
+        const inches = (totalInches % 12).toFixed(1);
+        return { feet, inches };
+      };
+
+      // One‑rep max estimation using the Epley formula.
+      const estimate1RM = (weight, reps) => {
+        if (reps === 0) return 0;
+        if (reps > 15) {
+          console.warn(
+            "1RM estimation accuracy decreases for reps > 15. Consider using a lower rep set for better accuracy."
+          );
+        }
+        return weight * (1 + reps / 30);
+      };
+
+      // Estimate other rep maxes from a known 1RM. Based on common percentage tables.
+      const estimateRMFrom1RM = (oneRM, targetReps) => {
+        const percentages = {
+          1: 1,
+          2: 0.95,
+          3: 0.93,
+          4: 0.9,
+          5: 0.87,
+          6: 0.85,
+          7: 0.83,
+          8: 0.8,
+          9: 0.77,
+          10: 0.75,
+          11: 0.73,
+          12: 0.7,
+          13: 0.68,
+          14: 0.66,
+          15: 0.64,
+        };
+        const pct = percentages[targetReps] || 0;
+        return oneRM * pct;
+      };
+
+      // Radar chart component. Draws a spider graph using SVG.
+      const RadarChart = memo(({ data, labels }) => {
+        const size = 300;
+        const center = size / 2;
+        const radius = size / 2 - 30;
+        const numPoints = data.length;
+        const angleSlice = (Math.PI * 2) / numPoints;
+
+        const getPoint = (value, index) => {
+          const angle = index * angleSlice - Math.PI / 2;
+          const r = (value / 100) * radius;
+          return {
+            x: center + r * Math.cos(angle),
+            y: center + r * Math.sin(angle),
+          };
+        };
+
+        const dataPoints = data.map((d, i) => getPoint(d, i));
+        const dataPath =
+          dataPoints
+            .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`)
+            .join(' ') + ' Z';
+
+        const axes = labels.map((label, i) => {
+          const point = getPoint(100, i);
+          return (
+            <g key={`axis-${i}`}>
+              <line
+                x1={center}
+                y1={center}
+                x2={point.x}
+                y2={point.y}
+                stroke="#475569"
+                strokeWidth="1"
+              />
+              <text
+                x={point.x}
+                y={point.y}
+                dy="0.35em"
+                textAnchor={
+                  point.x > center + 10
+                    ? 'start'
+                    : point.x < center - 10
+                    ? 'end'
+                    : 'middle'
+                }
+                fill="#cbd5e1"
+                fontSize="12"
+                fontWeight="bold"
+                transform={`translate(${point.x > center ? 10 : point.x < center ? -10 : 0}, ${
+                  point.y < center ? -5 : 15
+                })`}
+              >
+                {label}
+              </text>
+            </g>
+          );
+        });
+
+        const levels = 3;
+        const gridCircles = Array.from({ length: levels }).map((_, i) => {
+          const r = ((i + 1) / levels) * radius;
+          return (
+            <circle
+              key={`grid-circle-${i}`}
+              cx={center}
+              cy={center}
+              r={r}
+              fill="none"
+              stroke="#64748b"
+              strokeWidth="1"
+            />
+          );
+        });
+
+        return (
+          <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            className="bg-gray-800 rounded-lg shadow-md p-4"
+          >
+            {gridCircles}
+            {axes}
+            <path d={dataPath} fill="rgba(129, 140, 248, 0.6)" stroke="#818cf8" strokeWidth="2" />
+            {dataPoints.map((p, i) => (
+              <circle key={`data-point-${i}`} cx={p.x} cy={p.y} r="4" fill="#818cf8" />
+            ))}
+          </svg>
+        );
+      });
+
+      function App() {
+        // Personal details
+        const [name, setName] = useState('');
+        const [sex, setSex] = useState('Male');
+        const [age, setAge] = useState('');
+        const [unitSystem, setUnitSystem] = useState('metric');
+
+        // Height and weight (internal storage in CM and KG)
+        const [heightCm, setHeightCm] = useState('');
+        const [weightKg, setWeightKg] = useState('');
+
+        // Imperial display inputs
+        const [heightFeetInput, setHeightFeetInput] = useState('');
+        const [heightInchesInput, setHeightInchesInput] = useState('');
+        const [weightLbsInput, setWeightLbsInput] = useState('');
+
+        // Strength inputs in KG
+        const [squat1RMKg, setSquat1RMKg] = useState('');
+        const [deadlift1RMKg, setDeadlift1RMKg] = useState('');
+        const [bench1RMKg, setBench1RMKg] = useState('');
+        const [overheadPress1RMKg, setOverheadPress1RMKg] = useState('');
+        const [barbellRow1RMKg, setBarbellRow1RMKg] = useState('');
+        const [legCurl1RMKg, setLegCurl1RMKg] = useState('');
+        const [legExtension1RMKg, setLegExtension1RMKg] = useState('');
+
+        // Optional unilateral inputs
+        const [squatRight1RMKg, setSquatRight1RMKg] = useState('');
+        const [squatLeft1RMKg, setSquatLeft1RMKg] = useState('');
+        const [legExtensionRight1RMKg, setLegExtensionRight1RMKg] = useState('');
+        const [legExtensionLeft1RMKg, setLegExtensionLeft1RMKg] = useState('');
+        const [legCurlRight1RMKg, setLegCurlRight1RMKg] = useState('');
+        const [legCurlLeft1RMKg, setLegCurlLeft1RMKg] = useState('');
+
+        // Bodyweight exercise reps
+        const [pullupReps, setPullupReps] = useState('');
+        const [pushupReps, setPushupReps] = useState('');
+        const [dipsReps, setDipsReps] = useState('');
+
+        // Results and saved results
+        const [results, setResults] = useState(null);
+        const [savedResults, setSavedResults] = useState([]);
+        const [message, setMessage] = useState('');
+
+        // Load saved results from localStorage on mount
+        useEffect(() => {
+          const stored = JSON.parse(localStorage.getItem('strengthTests') || '[]');
+          setSavedResults(stored);
+        }, []);
+
+        // Synchronise imperial/metric display values when unit system changes
+        useEffect(() => {
+          if (unitSystem === 'metric') {
+            setWeightLbsInput(kgToLbs(parseFloatSafe(weightKg)).toFixed(1));
+            const { feet, inches } = cmToFeetInches(parseFloatSafe(heightCm));
+            setHeightFeetInput(feet.toString());
+            setHeightInchesInput(inches.toString());
+          } else {
+            setWeightKg(lbsToKg(parseFloatSafe(weightLbsInput)).toFixed(2));
+            setHeightCm(feetInchesToCm(heightFeetInput, heightInchesInput).toFixed(2));
+          }
+        }, [unitSystem, weightKg, heightCm, weightLbsInput, heightFeetInput, heightInchesInput]);
+
+        /**
+         * Compute strength ratios, symmetry scores and classifications.
+         * Returns an object with all metrics. Adapted from the original code.
+         */
+        const calculateMetrics = useCallback(() => {
+          const w = parseFloatSafe(weightKg);
+          const s = parseFloatSafe(squat1RMKg);
+          const d = parseFloatSafe(deadlift1RMKg);
+          const b = parseFloatSafe(bench1RMKg);
+          const o = parseFloatSafe(overheadPress1RMKg);
+          const br = parseFloatSafe(barbellRow1RMKg);
+          const lc = parseFloatSafe(legCurl1RMKg);
+          const le = parseFloatSafe(legExtension1RMKg);
+
+          const pr = parseFloatSafe(pullupReps);
+          const pur = parseFloatSafe(pushupReps);
+          const dr = parseFloatSafe(dipsReps);
+
+          const squatRatio = w > 0 ? (s / w).toFixed(2) : 0;
+          const deadliftRatio = w > 0 ? (d / w).toFixed(2) : 0;
+          const benchRatio = w > 0 ? (b / w).toFixed(2) : 0;
+          const overheadPressRatio = w > 0 ? (o / w).toFixed(2) : 0;
+          const barbellRowRatio = w > 0 ? (br / w).toFixed(2) : 0;
+          const legCurlRatio = w > 0 ? (lc / w).toFixed(2) : 0;
+          const legExtensionRatio = lc > 0 ? (le / lc).toFixed(2) : 0;
+
+          const pushPullRatio = br > 0 ? (b / br).toFixed(2) : 0;
+          const quadHamRatio = lc > 0 ? (le / lc).toFixed(2) : 0;
+
+          let avgUpperRatio = 0;
+          let upperCount = 0;
+          if (parseFloatSafe(benchRatio) > 0) { avgUpperRatio += parseFloatSafe(benchRatio); upperCount++; }
+          if (parseFloatSafe(overheadPressRatio) > 0) { avgUpperRatio += parseFloatSafe(overheadPressRatio); upperCount++; }
+          if (parseFloatSafe(barbellRowRatio) > 0) { avgUpperRatio += parseFloatSafe(barbellRowRatio); upperCount++; }
+          avgUpperRatio = upperCount > 0 ? (avgUpperRatio / upperCount) : 0;
+
+          let avgLowerRatio = 0;
+          let lowerCount = 0;
+          if (parseFloatSafe(squatRatio) > 0) { avgLowerRatio += parseFloatSafe(squatRatio); lowerCount++; }
+          if (parseFloatSafe(deadliftRatio) > 0) { avgLowerRatio += parseFloatSafe(deadliftRatio); lowerCount++; }
+          if (parseFloatSafe(legExtensionRatio) > 0) { avgLowerRatio += parseFloatSafe(legExtensionRatio); lowerCount++; }
+          if (parseFloatSafe(legCurlRatio) > 0) { avgLowerRatio += parseFloatSafe(legCurlRatio); lowerCount++; }
+          avgLowerRatio = lowerCount > 0 ? (avgLowerRatio / lowerCount) : 0;
+
+          const upperLowerRatio = avgLowerRatio > 0 ? (avgUpperRatio / avgLowerRatio).toFixed(2) : 0;
+
+          const sR = parseFloatSafe(squatRight1RMKg);
+          const sL = parseFloatSafe(squatLeft1RMKg);
+          const leR = parseFloatSafe(legExtensionRight1RMKg);
+          const leL = parseFloatSafe(legExtensionLeft1RMKg);
+          const lcR = parseFloatSafe(legCurlRight1RMKg);
+          const lcL = parseFloatSafe(legCurlLeft1RMKg);
+
+          const squatLeftRightDiff = (sR > 0 || sL > 0) ? (Math.abs(sR - sL) / ((sR + sL) / 2) * 100).toFixed(1) : null;
+          const legExtensionLeftRightDiff = (leR > 0 || leL > 0) ? (Math.abs(leR - leL) / ((leR + leL) / 2) * 100).toFixed(1) : null;
+          const legCurlLeftRightDiff = (lcR > 0 || lcL > 0) ? (Math.abs(lcR - lcL) / ((lcR + lcL) / 2) * 100).toFixed(1) : null;
+
+          const classify = (value, idealMin, idealMax, minorDiffThreshold = 0.10, majorDiffThreshold = 0.15) => {
+            const idealRangeMid = (idealMin + idealMax) / 2;
+            const diffFromMid = Math.abs(value - idealRangeMid) / idealRangeMid;
+            if (value >= idealMin && value <= idealMax) return 'Green';
+            else if (diffFromMid <= minorDiffThreshold) return 'Yellow';
+            return 'Red';
+          };
+
+          const classifyPercentageDiff = (diff) => {
+            if (diff === null) return 'N/A';
+            const d = parseFloatSafe(diff);
+            if (d < 10) return 'Green';
+            if (d >= 10 && d <= 15) return 'Yellow';
+            return 'Red';
+          };
+
+          const pushPullClass = classify(parseFloatSafe(pushPullRatio), 0.9, 1.1);
+          const quadHamClass = classify(parseFloatSafe(quadHamRatio), 0.9, 1.1);
+          const upperLowerClass = classify(parseFloatSafe(upperLowerRatio), 0.8, 1.2);
+          const squatLRClass = classifyPercentageDiff(squatLeftRightDiff);
+          const legExtLRClass = classifyPercentageDiff(legExtensionLeftRightDiff);
+          const legCurlLRClass = classifyPercentageDiff(legCurlLeftRightDiff);
+
+          let scorePoints = 0;
+          let categoriesCount = 0;
+          const addScore = (classification) => {
+            categoriesCount++;
+            if (classification === 'Green') scorePoints += 100;
+            else if (classification === 'Yellow') scorePoints += 50;
+          };
+          addScore(pushPullClass);
+          addScore(quadHamClass);
+          addScore(upperLowerClass);
+          if (squatLeftRightDiff !== null) addScore(squatLRClass);
+          if (legExtensionLeftRightDiff !== null) addScore(legExtLRClass);
+          if (legCurlLeftRightDiff !== null) addScore(legCurlLRClass);
+          const overallSymmetryScore = categoriesCount > 0 ? (scorePoints / categoriesCount).toFixed(0) : 0;
+
+          return {
+            squatRatio,
+            deadliftRatio,
+            benchRatio,
+            overheadPressRatio,
+            barbellRowRatio,
+            legCurlRatio,
+            legExtensionRatio,
+            pushPullRatio,
+            quadHamRatio,
+            upperLowerRatio,
+            squatLeftRightDiff,
+            legExtensionLeftRightDiff,
+            legCurlLeftRightDiff,
+            pushPullClass,
+            quadHamClass,
+            upperLowerClass,
+            squatLRClass,
+            legExtLRClass,
+            legCurlLRClass,
+            overallSymmetryScore,
+            pullupReps: pr,
+            pushupReps: pur,
+            dipsReps: dr,
+          };
+        }, [
+          weightKg,
+          squat1RMKg,
+          deadlift1RMKg,
+          bench1RMKg,
+          overheadPress1RMKg,
+          pullupReps,
+          pushupReps,
+          dipsReps,
+          barbellRow1RMKg,
+          legCurl1RMKg,
+          legExtension1RMKg,
+          squatRight1RMKg,
+          squatLeft1RMKg,
+          legExtensionRight1RMKg,
+          legExtensionLeft1RMKg,
+          legCurlRight1RMKg,
+          legCurlLeft1RMKg,
+        ]);
+
+        // Calculate and show results
+        const handleCalculate = (e) => {
+          e.preventDefault();
+          const calculated = calculateMetrics();
+          setResults(calculated);
+          setMessage('');
+          setTimeout(() => {
+            const section = document.getElementById('results-section');
+            section && section.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
+        };
+
+        // Save results to localStorage
+        const handleSave = () => {
+          if (!results) {
+            setMessage('Please calculate results before saving.');
+            return;
+          }
+          const existing = JSON.parse(localStorage.getItem('strengthTests') || '[]');
+          const record = {
+            id: Date.now(),
+            name,
+            sex,
+            age: parseFloatSafe(age),
+            heightCm: parseFloatSafe(heightCm),
+            weightKg: parseFloatSafe(weightKg),
+            squat1RMKg: parseFloatSafe(squat1RMKg),
+            deadlift1RMKg: parseFloatSafe(deadlift1RMKg),
+            bench1RMKg: parseFloatSafe(bench1RMKg),
+            overheadPress1RMKg: parseFloatSafe(overheadPress1RMKg),
+            barbellRow1RMKg: parseFloatSafe(barbellRow1RMKg),
+            legCurl1RMKg: parseFloatSafe(legCurl1RMKg),
+            legExtension1RMKg: parseFloatSafe(legExtension1RMKg),
+            squatRight1RMKg: parseFloatSafe(squatRight1RMKg),
+            squatLeft1RMKg: parseFloatSafe(squatLeft1RMKg),
+            legExtensionRight1RMKg: parseFloatSafe(legExtensionRight1RMKg),
+            legExtensionLeft1RMKg: parseFloatSafe(legExtensionLeft1RMKg),
+            legCurlRight1RMKg: parseFloatSafe(legCurlRight1RMKg),
+            legCurlLeft1RMKg: parseFloatSafe(legCurlLeft1RMKg),
+            pullupReps: parseFloatSafe(pullupReps),
+            pushupReps: parseFloatSafe(pushupReps),
+            dipsReps: parseFloatSafe(dipsReps),
+            calculatedMetrics: results,
+            unitSystem,
+            timestamp: new Date().toLocaleString(),
+          };
+          existing.unshift(record);
+          localStorage.setItem('strengthTests', JSON.stringify(existing));
+          setSavedResults(existing);
+          setMessage('Results saved locally!');
+          setTimeout(() => setMessage(''), 3000);
+        };
+
+        // Load a saved result into the form
+        const handleLoadResult = (record) => {
+          setName(record.name);
+          setSex(record.sex);
+          setAge(record.age.toString());
+          setUnitSystem(record.unitSystem || 'metric');
+          setHeightCm(record.heightCm.toString());
+          setWeightKg(record.weightKg.toString());
+          setSquat1RMKg(record.squat1RMKg.toString());
+          setDeadlift1RMKg(record.deadlift1RMKg.toString());
+          setBench1RMKg(record.bench1RMKg.toString());
+          setOverheadPress1RMKg(record.overheadPress1RMKg.toString());
+          setBarbellRow1RMKg(record.barbellRow1RMKg.toString());
+          setLegCurl1RMKg(record.legCurl1RMKg.toString());
+          setLegExtension1RMKg(record.legExtension1RMKg.toString());
+          setSquatRight1RMKg(record.squatRight1RMKg.toString());
+          setSquatLeft1RMKg(record.squatLeft1RMKg.toString());
+          setLegExtensionRight1RMKg(record.legExtensionRight1RMKg.toString());
+          setLegExtensionLeft1RMKg(record.legExtensionLeft1RMKg.toString());
+          setLegCurlRight1RMKg(record.legCurlRight1RMKg.toString());
+          setLegCurlLeft1RMKg(record.legCurlLeft1RMKg.toString());
+          setPullupReps(record.pullupReps.toString());
+          setPushupReps(record.pushupReps.toString());
+          setDipsReps(record.dipsReps.toString());
+          setResults(record.calculatedMetrics);
+          setMessage('Loaded saved result.');
+          setTimeout(() => setMessage(''), 3000);
+        };
+
+        // Remove a saved result
+        const handleDeleteResult = (recordId) => {
+          const updated = savedResults.filter((r) => r.id !== recordId);
+          localStorage.setItem('strengthTests', JSON.stringify(updated));
+          setSavedResults(updated);
+        };
+
+        // Render the form inputs for a one‑rep max field with optional estimate inputs
+        const render1RMInput = (label, value, setValue) => (
+          <div className="flex flex-col mb-4">
+            <label className="text-sm font-medium mb-1">{label} 1RM (kg)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              className="bg-gray-800 border border-gray-700 rounded p-2 focus:outline-none"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+          </div>
+        );
+
+        return (
+          <div>
+            <h1 className="text-3xl font-bold text-indigo-400 mb-4 text-center">
+              Spider Radar – Strength & Balance App
+            </h1>
+            <p className="text-center mb-6 text-gray-400">
+              Enter your details and one‑rep maxes below. We'll calculate your strength ratios,
+              symmetry scores and display them on a radar (spider) chart. You can also save
+              your results locally for later review.
+            </p>
+            {message && (
+              <div className="mb-4 text-center text-yellow-300">
+                {message}
+              </div>
+            )}
+            <form onSubmit={handleCalculate} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-800 p-4 rounded-lg shadow-md">
+              {/* Personal information */}
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Name</label>
+                <input
+                  type="text"
+                  className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Sex</label>
+                <select
+                  className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                  value={sex}
+                  onChange={(e) => setSex(e.target.value)}
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Age</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Unit system</label>
+                <select
+                  className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                  value={unitSystem}
+                  onChange={(e) => setUnitSystem(e.target.value)}
+                >
+                  <option value="metric">Metric (kg, cm)</option>
+                  <option value="imperial">Imperial (lbs, ft/in)</option>
+                </select>
+              </div>
+              {/* Height and weight inputs */}
+              {unitSystem === 'metric' ? (
+                <>
+                  <div className="flex flex-col mb-2">
+                    <label className="text-sm font-medium mb-1">Height (cm)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                      value={heightCm}
+                      onChange={(e) => setHeightCm(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col mb-2">
+                    <label className="text-sm font-medium mb-1">Weight (kg)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                      value={weightKg}
+                      onChange={(e) => setWeightKg(e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col mb-2">
+                    <label className="text-sm font-medium mb-1">Height – feet</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                      value={heightFeetInput}
+                      onChange={(e) => setHeightFeetInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col mb-2">
+                    <label className="text-sm font-medium mb-1">Height – inches</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                      value={heightInchesInput}
+                      onChange={(e) => setHeightInchesInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col mb-2">
+                    <label className="text-sm font-medium mb-1">Weight (lbs)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                      value={weightLbsInput}
+                      onChange={(e) => setWeightLbsInput(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+              {/* Strength inputs */}
+              {render1RMInput('Squat', squat1RMKg, setSquat1RMKg)}
+              {render1RMInput('Deadlift', deadlift1RMKg, setDeadlift1RMKg)}
+              {render1RMInput('Bench Press', bench1RMKg, setBench1RMKg)}
+              {render1RMInput('Overhead Press', overheadPress1RMKg, setOverheadPress1RMKg)}
+              {render1RMInput('Barbell Row', barbellRow1RMKg, setBarbellRow1RMKg)}
+              {render1RMInput('Leg Curl', legCurl1RMKg, setLegCurl1RMKg)}
+              {render1RMInput('Leg Extension', legExtension1RMKg, setLegExtension1RMKg)}
+
+              {/* Optional unilateral inputs */}
+              <div className="col-span-full border-t border-gray-700 my-4"></div>
+              <div className="col-span-full text-gray-400 text-sm mb-2">Optional: Enter left/right 1RMs for unilateral exercises</div>
+              {render1RMInput('Squat Right', squatRight1RMKg, setSquatRight1RMKg)}
+              {render1RMInput('Squat Left', squatLeft1RMKg, setSquatLeft1RMKg)}
+              {render1RMInput('Leg Extension Right', legExtensionRight1RMKg, setLegExtensionRight1RMKg)}
+              {render1RMInput('Leg Extension Left', legExtensionLeft1RMKg, setLegExtensionLeft1RMKg)}
+              {render1RMInput('Leg Curl Right', legCurlRight1RMKg, setLegCurlRight1RMKg)}
+              {render1RMInput('Leg Curl Left', legCurlLeft1RMKg, setLegCurlLeft1RMKg)}
+
+              {/* Bodyweight exercises */}
+              <div className="col-span-full border-t border-gray-700 my-4"></div>
+              <div className="col-span-full text-gray-400 text-sm mb-2">Bodyweight exercises (max reps)</div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Pull‑ups</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                  value={pullupReps}
+                  onChange={(e) => setPullupReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Push‑ups</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                  value={pushupReps}
+                  onChange={(e) => setPushupReps(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col mb-2">
+                <label className="text-sm font-medium mb-1">Dips</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none"
+                  value={dipsReps}
+                  onChange={(e) => setDipsReps(e.target.value)}
+                />
+              </div>
+
+              {/* Submit and Save buttons */}
+              <div className="col-span-full flex flex-wrap gap-4 mt-4">
+                <button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded"
+                >
+                  Calculate
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+
+            {/* Results section */}
+            {results && (
+              <div id="results-section" className="mt-8 p-4 bg-gray-800 rounded-lg shadow-md">
+                <h2 className="text-2xl font-bold text-indigo-400 mb-4">Results</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Ratios and scores */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Strength Ratios</h3>
+                    <ul className="space-y-1">
+                      <li>Squat / Bodyweight: <span className="font-mono">{results.squatRatio}</span></li>
+                      <li>Deadlift / Bodyweight: <span className="font-mono">{results.deadliftRatio}</span></li>
+                      <li>Bench Press / Bodyweight: <span className="font-mono">{results.benchRatio}</span></li>
+                      <li>Overhead Press / Bodyweight: <span className="font-mono">{results.overheadPressRatio}</span></li>
+                      <li>Row / Bodyweight: <span className="font-mono">{results.barbellRowRatio}</span></li>
+                      <li>Leg Curl / Bodyweight: <span className="font-mono">{results.legCurlRatio}</span></li>
+                      <li>Leg Extension / Leg Curl: <span className="font-mono">{results.legExtensionRatio}</span></li>
+                    </ul>
+                    <h3 className="text-lg font-semibold mt-4 mb-2">Symmetry & Balance</h3>
+                    <ul className="space-y-1">
+                      <li>Push : Pull ratio: <span className="font-mono">{results.pushPullRatio} ({results.pushPullClass})</span></li>
+                      <li>Quad : Ham ratio: <span className="font-mono">{results.quadHamRatio} ({results.quadHamClass})</span></li>
+                      <li>Upper : Lower ratio: <span className="font-mono">{results.upperLowerRatio} ({results.upperLowerClass})</span></li>
+                      <li>Squat L/R diff: <span className="font-mono">{results.squatLeftRightDiff ?? 'N/A'} ({results.squatLRClass})</span></li>
+                      <li>Leg Ext L/R diff: <span className="font-mono">{results.legExtensionLeftRightDiff ?? 'N/A'} ({results.legExtLRClass})</span></li>
+                      <li>Leg Curl L/R diff: <span className="font-mono">{results.legCurlLeftRightDiff ?? 'N/A'} ({results.legCurlLRClass})</span></li>
+                      <li>Overall symmetry score: <span className="font-mono">{results.overallSymmetryScore}%</span></li>
+                    </ul>
+                    <h3 className="text-lg font-semibold mt-4 mb-2">Bodyweight Reps</h3>
+                    <ul className="space-y-1">
+                      <li>Pull‑ups: <span className="font-mono">{results.pullupReps}</span></li>
+                      <li>Push‑ups: <span className="font-mono">{results.pushupReps}</span></li>
+                      <li>Dips: <span className="font-mono">{results.dipsReps}</span></li>
+                    </ul>
+                  </div>
+                  {/* Radar chart */}
+                  <div className="flex justify-center items-center">
+                    <RadarChart
+                      data={[
+                        parseFloatSafe(results.squatRatio) * 100,
+                        parseFloatSafe(results.deadliftRatio) * 100,
+                        parseFloatSafe(results.benchRatio) * 100,
+                        parseFloatSafe(results.overheadPressRatio) * 100,
+                        parseFloatSafe(results.barbellRowRatio) * 100,
+                        parseFloatSafe(results.legCurlRatio) * 100,
+                        parseFloatSafe(results.legExtensionRatio) * 100,
+                      ]}
+                      labels={['Squat', 'Deadlift', 'Bench', 'Overhead', 'Row', 'Curl', 'Ext']}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Saved results list */}
+            {savedResults.length > 0 && (
+              <div className="mt-8 p-4 bg-gray-800 rounded-lg shadow-md">
+                <h2 className="text-2xl font-bold text-indigo-400 mb-4">Saved Assessments</h2>
+                <table className="w-full text-sm text-left text-gray-400">
+                  <thead className="text-xs uppercase text-gray-500 border-b border-gray-700">
+                    <tr>
+                      <th className="py-2 px-2">Timestamp</th>
+                      <th className="py-2 px-2">Name</th>
+                      <th className="py-2 px-2">Squat Ratio</th>
+                      <th className="py-2 px-2">Bench Ratio</th>
+                      <th className="py-2 px-2">Symmetry</th>
+                      <th className="py-2 px-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedResults.map((record) => (
+                      <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-700/40">
+                        <td className="py-2 px-2 whitespace-nowrap">{record.timestamp}</td>
+                        <td className="py-2 px-2 whitespace-nowrap">{record.name}</td>
+                        <td className="py-2 px-2 whitespace-nowrap">{record.calculatedMetrics.squatRatio}</td>
+                        <td className="py-2 px-2 whitespace-nowrap">{record.calculatedMetrics.benchRatio}</td>
+                        <td className="py-2 px-2 whitespace-nowrap">{record.calculatedMetrics.overallSymmetryScore}%</td>
+                        <td className="py-2 px-2 whitespace-nowrap text-right space-x-2">
+                          <button
+                            onClick={() => handleLoadResult(record)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white py-1 px-2 rounded text-xs"
+                          >
+                            Load
+                          </button>
+                          <button
+                            onClick={() => handleDeleteResult(record.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white py-1 px-2 rounded text-xs"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // Render the app into the root container
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>
